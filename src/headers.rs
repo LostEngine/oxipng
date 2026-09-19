@@ -177,16 +177,14 @@ pub fn parse_ihdr_chunk(
                 palette: palette_to_rgba(palette_data, trns_data).unwrap_or_default(),
             },
             4 => ColorType::GrayscaleAlpha,
-            6 => ColorType::RGBA,
-            _ => return Err(PngError::InvalidData),
+            _ => ColorType::RGBA, // PackOBF -- Default to RGBA instead of PngError::InvalidData
         },
         bit_depth: byte_data[8].try_into()?,
         width: read_be_u32(&byte_data[0..4]),
         height: read_be_u32(&byte_data[4..8]),
         interlaced: match interlaced {
             0 => false,
-            1 => true,
-            _ => return Err(PngError::InvalidData),
+            _ => true, // PackOBF -- Default to true instead of PngError::InvalidData
         },
     })
 }

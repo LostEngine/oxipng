@@ -18,8 +18,14 @@ pub fn deflate(data: &[u8], level: u8, max_size: Option<usize>) -> PngResult<Vec
 pub fn inflate(data: &[u8], out_size: usize) -> PngResult<Vec<u8>> {
     let mut decompressor = Decompressor::new();
     let mut dest = vec![0; out_size];
+    // PackOBF -- Remove zlib header and checksum
+    let data = &data[
+        2 // removes the zlib header
+        ..
+        data.len() - 4 // removes the zlib checksum
+    ];
     let len = decompressor
-        .zlib_decompress(data, &mut dest)
+        .deflate_decompress(data, &mut dest) // Use deflate_decompress instead of zlib_decompress to avoid wrong crc error
         .map_err(|err| match err {
             DecompressionError::BadData => PngError::InvalidData,
             DecompressionError::InsufficientSpace => PngError::InflatedDataTooLong(out_size),
