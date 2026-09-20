@@ -13,6 +13,7 @@ pub use zopfli::Options as ZopfliOptions;
 pub use zopfli_oxipng::deflate as zopfli_deflate;
 
 /// DEFLATE algorithms supported by oxipng (for use in [`Options`][crate::Options])
+#[allow(unpredictable_function_pointer_comparisons)] // PackOBF -- Add Custom deflater
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Deflater {
     /// Use libdeflater.
@@ -23,6 +24,9 @@ pub enum Deflater {
     #[cfg(feature = "zopfli")]
     /// Use the better but slower Zopfli implementation
     Zopfli(ZopfliOptions),
+    // PackOBF -- Add Custom deflater
+    /// Custom ZLin compression algorithm provided by the developer
+    Custom(fn (&[u8]) -> Vec<u8>)
 }
 
 impl Deflater {
@@ -31,6 +35,7 @@ impl Deflater {
             Self::Libdeflater { compression } => deflate(data, compression, max_size)?,
             #[cfg(feature = "zopfli")]
             Self::Zopfli(options) => zopfli_deflate(data, options)?,
+            Self::Custom(function) => function(data), // PackOBF -- Add Custom deflater
         };
         if let Some(max) = max_size
             && compressed.len() > max
@@ -48,6 +53,7 @@ impl Display for Deflater {
             Self::Libdeflater { compression } => write!(f, "zc = {compression}"),
             #[cfg(feature = "zopfli")]
             Self::Zopfli(options) => write!(f, "zopfli, zi = {}", options.iteration_count),
+            Self::Custom(_) => write!(f, "custom"), // PackOBF -- Add Custom deflater
         }
     }
 }
