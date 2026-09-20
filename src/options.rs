@@ -159,6 +159,8 @@ pub struct Options {
     ///
     /// Default: `None`
     pub max_decompressed_size: Option<usize>,
+    // PackOBF -- disable_checksums
+    pub disable_checksums: bool,
 }
 
 impl Options {
@@ -304,6 +306,7 @@ impl Default for Options {
             fast_evaluation: true,
             timeout: None,
             max_decompressed_size: None,
+            disable_checksums: false, // PackOBF -- disable_checksums
         }
     }
 }

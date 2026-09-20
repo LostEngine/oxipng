@@ -252,8 +252,8 @@ pub fn extract_icc(iccp: &Chunk, max_size: Option<usize>) -> Option<Vec<u8>> {
 }
 
 /// Make an iCCP chunk by compressing the ICC profile
-pub fn make_iccp(icc: &[u8], deflater: Deflater, max_size: Option<usize>) -> PngResult<Chunk> {
-    let mut compressed = deflater.deflate(icc, max_size)?;
+pub fn make_iccp(icc: &[u8], deflater: Deflater, max_size: Option<usize>, disable_checksums: bool) -> PngResult<Chunk> { // PackOBF -- disable_checksums
+    let mut compressed = deflater.deflate(icc, max_size, disable_checksums)?; // PackOBF -- disable_checksums
     let mut data = Vec::with_capacity(compressed.len() + 5);
     data.extend(b"icc"); // Profile name - generally unused, can be anything
     data.extend([0, 0]); // Null separator, zlib compression method
@@ -324,7 +324,7 @@ pub fn preprocess_chunks(aux_chunks: &mut Vec<Chunk>, opts: &mut Options) {
             } else if opts.idat_recoding {
                 // Try recompressing the profile
                 let cur_len = aux_chunks[iccp_idx].data.len();
-                if let Ok(iccp) = make_iccp(&icc, opts.deflater, Some(cur_len - 1)) {
+                if let Ok(iccp) = make_iccp(&icc, opts.deflater, Some(cur_len - 1), opts.disable_checksums) { // PackOBF -- disable_checksums
                     debug!(
                         "Recompressed iCCP chunk: {} ({} bytes decrease)",
                         iccp.data.len(),

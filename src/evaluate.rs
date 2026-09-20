@@ -151,7 +151,7 @@ impl Evaluator {
                     return;
                 }
                 let (filtered, filter_used) = image.filter_image(filter.clone(), optimize_alpha);
-                let idat_data = deflater.deflate(&filtered, best_candidate_size.get());
+                let idat_data = deflater.deflate(&filtered, best_candidate_size.get(), false); // PackOBF -- disable_checksums
                 if let Ok(idat_data) = idat_data {
                     let estimated_output_size = image.estimated_output_size(&idat_data);
                     trace!(

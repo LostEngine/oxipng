@@ -126,10 +126,10 @@ impl RawImage {
     }
 
     /// Add an ICC profile for the image
-    pub fn add_icc_profile(&mut self, data: &[u8]) {
+    pub fn add_icc_profile(&mut self, data: &[u8], disable_checksums: bool) { // PackOBF -- disable_checksums
         // Compress with fastest compression level - will be recompressed during optimization
         let deflater = Deflater::Libdeflater { compression: 1 };
-        if let Ok(iccp) = make_iccp(data, deflater, None) {
+        if let Ok(iccp) = make_iccp(data, deflater, None, disable_checksums) { // PackOBF -- disable_checksums
             self.aux_chunks.push(iccp);
         }
     }
@@ -158,7 +158,7 @@ impl RawImage {
         };
         postprocess_chunks(&mut png.aux_chunks, &png.raw.ihdr, &self.png.ihdr);
 
-        Ok(png.output())
+        Ok(png.output(opts.disable_checksums)) // PackOBF -- disable_checksums
     }
 }
 
@@ -337,7 +337,7 @@ fn optimize_png(
         postprocess_chunks(&mut png.aux_chunks, &png.raw.ihdr, &raw.ihdr);
     }
 
-    let output = png.output();
+    let output = png.output(opts.disable_checksums); // PackOBF -- disable_checksums
 
     if idat_original_size >= png.idat_data.len() {
         debug!(
@@ -499,7 +499,7 @@ fn perform_trials(
             // Compress with the main deflater
             debug!("Trying filter {} with {}", result.filter, opts.deflater);
             let (data, _) = image.filter_image(result.filter_used.clone(), opts.optimize_alpha);
-            match opts.deflater.deflate(&data, max_size) {
+            match opts.deflater.deflate(&data, max_size, opts.disable_checksums) { // PackOBF -- disable_checksums
                 Ok(idat_data) => {
                     result.estimated_output_size = result.image.estimated_output_size(&idat_data);
                     result.idat_data = Some(idat_data);
@@ -613,7 +613,7 @@ fn recompress_frames(
             let image = PngImage::new(ihdr, &frame.data)?;
             let (filtered, _) = image.filter_image(filter.clone(), opts.optimize_alpha);
             let max_size = Some(frame.data.len() - 1);
-            if let Ok(data) = opts.deflater.deflate(&filtered, max_size) {
+            if let Ok(data) = opts.deflater.deflate(&filtered, max_size, opts.disable_checksums) { // PackOBF -- disable_checksums
                 debug!(
                     "Recompressed fdAT #{:<2}: {} ({} bytes decrease)",
                     i,

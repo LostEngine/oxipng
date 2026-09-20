@@ -159,7 +159,7 @@ impl PngData {
 
     /// Format the `PngData` struct into a valid PNG bytestream
     #[must_use]
-    pub fn output(&self) -> Vec<u8> {
+    pub fn output(&self, disable_checksums: bool) -> Vec<u8> { // PackOBF -- disable_checksums
         // PNG header
         let mut output = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
         // IHDR
@@ -173,7 +173,7 @@ impl PngData {
             0, // Filter method -- 5-way adaptive filtering
             self.raw.ihdr.interlaced as u8,
         ]);
-        write_png_block(b"IHDR", &ihdr_data, &mut output);
+        write_png_block(b"IHDR", &ihdr_data, &mut output, disable_checksums); // PackOBF -- disable_checksums
         // Ancillary chunks - split into those that come before IDAT and those that come after
         let mut aux_split = self.aux_chunks.split(|c| &c.name == b"IDAT");
         let aux_pre = aux_split.next().unwrap();
@@ -184,7 +184,7 @@ impl PngData {
             .iter()
             .filter(|c| !matches!(&c.name, b"bKGD" | b"hIST" | b"tRNS" | b"fcTL"))
         {
-            write_png_block(&chunk.name, &chunk.data, &mut output);
+            write_png_block(&chunk.name, &chunk.data, &mut output, disable_checksums); // PackOBF -- disable_checksums
         }
         // Palette and transparency
         match &self.raw.ihdr.color_type {
@@ -193,24 +193,24 @@ impl PngData {
                 for px in palette {
                     palette_data.extend_from_slice(px.rgb().as_ref());
                 }
-                write_png_block(b"PLTE", &palette_data, &mut output);
+                write_png_block(b"PLTE", &palette_data, &mut output, disable_checksums); // PackOBF -- disable_checksums
                 if let Some(last_trns) = palette.iter().rposition(|px| px.a != 255) {
                     let trns_data: Vec<_> = palette[0..=last_trns].iter().map(|px| px.a).collect();
-                    write_png_block(b"tRNS", &trns_data, &mut output);
+                    write_png_block(b"tRNS", &trns_data, &mut output, disable_checksums); // PackOBF -- disable_checksums
                 }
             }
             ColorType::Grayscale {
                 transparent_shade: Some(trns),
             } => {
                 // Transparency pixel - 2 byte u16
-                write_png_block(b"tRNS", &trns.to_be_bytes(), &mut output);
+                write_png_block(b"tRNS", &trns.to_be_bytes(), &mut output, disable_checksums); // PackOBF -- disable_checksums
             }
             ColorType::RGB {
                 transparent_color: Some(trns),
             } => {
                 // Transparency pixel - 6 byte RGB16
                 let trns_data: Vec<_> = trns.iter().flat_map(u16::to_be_bytes).collect();
-                write_png_block(b"tRNS", &trns_data, &mut output);
+                write_png_block(b"tRNS", &trns_data, &mut output, disable_checksums); // PackOBF -- disable_checksums
             }
             _ => {}
         }
@@ -220,27 +220,27 @@ impl PngData {
             .iter()
             .filter(|c| matches!(&c.name, b"bKGD" | b"hIST" | b"tRNS" | b"fcTL"))
         {
-            write_png_block(&chunk.name, &chunk.data, &mut output);
+            write_png_block(&chunk.name, &chunk.data, &mut output, disable_checksums); // PackOBF -- disable_checksums
             if &chunk.name == b"fcTL" {
                 sequence_number += 1;
             }
         }
         // IDAT data
-        write_png_block(b"IDAT", &self.idat_data, &mut output);
+        write_png_block(b"IDAT", &self.idat_data, &mut output, disable_checksums); // PackOBF -- disable_checksums
         // APNG frames
         for frame in self.frames.iter() {
-            write_png_block(b"fcTL", &frame.fctl_data(sequence_number), &mut output);
-            write_png_block(b"fdAT", &frame.fdat_data(sequence_number + 1), &mut output);
+            write_png_block(b"fcTL", &frame.fctl_data(sequence_number), &mut output, disable_checksums); // PackOBF -- disable_checksums
+            write_png_block(b"fdAT", &frame.fdat_data(sequence_number + 1), &mut output, disable_checksums); // PackOBF -- disable_checksums
             sequence_number += 2;
         }
         // Ancillary chunks that come after IDAT
         for aux_post in aux_split {
             for chunk in aux_post {
-                write_png_block(&chunk.name, &chunk.data, &mut output);
+                write_png_block(&chunk.name, &chunk.data, &mut output, disable_checksums); // PackOBF -- disable_checksums
             }
         }
         // Stream end
-        write_png_block(b"IEND", &[], &mut output);
+        write_png_block(b"IEND", &[], &mut output, disable_checksums); // PackOBF -- disable_checksums
 
         output
     }
@@ -411,13 +411,18 @@ impl PngImage {
     }
 }
 
-fn write_png_block(key: &[u8], chunk: &[u8], output: &mut Vec<u8>) {
+fn write_png_block(key: &[u8], chunk: &[u8], output: &mut Vec<u8>, disable_checksums: bool) { // PackOBF -- disable_checksums
     let mut chunk_data = Vec::with_capacity(chunk.len() + 4);
     chunk_data.extend_from_slice(key);
     chunk_data.extend_from_slice(chunk);
     output.reserve(chunk_data.len() + 8);
     output.extend_from_slice(&(chunk_data.len() as u32 - 4).to_be_bytes());
-    let crc = deflate::crc32(&chunk_data);
+    // PackOBF -- disable_checksums
+    let crc = if disable_checksums {
+        0
+    } else {
+        deflate::crc32(&chunk_data)
+    };
     output.append(&mut chunk_data);
     output.extend_from_slice(&crc.to_be_bytes());
 }

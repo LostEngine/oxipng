@@ -26,16 +26,16 @@ pub enum Deflater {
     Zopfli(ZopfliOptions),
     // PackOBF -- Add Custom deflater
     /// Custom ZLin compression algorithm provided by the developer
-    Custom(fn (&[u8]) -> PngResult<Vec<u8>>)
+    Custom(fn (&[u8], bool) -> PngResult<Vec<u8>>) // PackOBF -- disable_checksums
 }
 
 impl Deflater {
-    pub(crate) fn deflate(self, data: &[u8], max_size: Option<usize>) -> PngResult<Vec<u8>> {
+    pub(crate) fn deflate(self, data: &[u8], max_size: Option<usize>, disable_checksums: bool) -> PngResult<Vec<u8>> { // PackOBF -- disable_checksums
         let compressed = match self {
             Self::Libdeflater { compression } => deflate(data, compression, max_size)?,
             #[cfg(feature = "zopfli")]
             Self::Zopfli(options) => zopfli_deflate(data, options)?,
-            Self::Custom(function) => function(data)?, // PackOBF -- Add Custom deflater
+            Self::Custom(function) => function(data, disable_checksums)?, // PackOBF -- Add Custom deflater
         };
         if let Some(max) = max_size
             && compressed.len() > max
