@@ -418,11 +418,12 @@ fn write_png_block(key: &[u8], chunk: &[u8], output: &mut Vec<u8>, disable_check
     output.reserve(chunk_data.len() + 8);
     output.extend_from_slice(&(chunk_data.len() as u32 - 4).to_be_bytes());
     // PackOBF -- disable_checksums
+    output.append(&mut chunk_data);
     let crc = if disable_checksums {
+        if key == b"IEND" { return; } // The last crc does not need to be written if checksums are disabled
         0
     } else {
         deflate::crc32(&chunk_data)
     };
-    output.append(&mut chunk_data);
     output.extend_from_slice(&crc.to_be_bytes());
 }
